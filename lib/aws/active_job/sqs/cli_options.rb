@@ -16,6 +16,7 @@ module Aws
             max_messages_option(opts, out)
             visibility_timeout_option(opts, out)
             shutdown_timeout_option(opts, out)
+            event_message_class_option(opts, out)
             boot_rails_option(opts, out)
             require_option(opts, out)
           end
@@ -48,6 +49,15 @@ module Aws
           doc = 'When set boots rails before running the poller.'
           opts.on('--[no-]rails [FLAG]', TrueClass, doc) do |a|
             out[:boot_rails] = a.nil? ? true : a
+          end
+        end
+
+        def self.event_message_class_option(opts, out)
+          doc = 'ActiveJob class used to process non-ActiveJob SQS messages on the polled ' \
+                'queue(s). Applied to each queue specified with --queue, or all configured ' \
+                'queues when --queue is omitted.'
+          opts.on('--event_message_class STRING', String, doc) do |a|
+            out[:event_message_class] = a
           end
         end
 

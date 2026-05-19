@@ -40,10 +40,14 @@ module Aws
         private
 
         def init_config
+          event_message_class = @options.delete(:event_message_class)
+
           Aws::ActiveJob::SQS.configure do |cfg|
             @options.each_pair do |key, value|
               cfg.send(:"#{key}=", value) if cfg.respond_to?(:"#{key}=")
             end
+
+            apply_event_message_class_override(cfg, event_message_class) if event_message_class
           end
 
           # ensure we have a logger configured
@@ -54,6 +58,19 @@ module Aws
 
         def shutdown(timeout)
           @executor.shutdown(timeout)
+        end
+
+        def apply_event_message_class_override(cfg, event_message_class)
+          queues = if @queues && !@queues.empty?
+                     @queues
+                   else
+                     cfg.queues.keys
+                   end
+
+          queues.each do |queue|
+            cfg.queues[queue] ||= {}
+            cfg.queues[queue][:event_message_class] = event_message_class
+          end
         end
 
         def poll
