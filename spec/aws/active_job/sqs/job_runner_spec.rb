@@ -153,7 +153,8 @@ module Aws
 
           context 'missing event_message_class' do
             it 'raises error' do
-              runner = described_class.new(event_sqs_message, queue: :default_queue)
+              runner = described_class.allocate
+              runner.instance_variable_set(:@queue, :default_queue)
               expect {
                 runner.send(:event_message_class_for, event_sqs_message)
               }.to raise_error(ArgumentError, 'No event_message_class configured for queue default_queue')

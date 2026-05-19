@@ -97,7 +97,7 @@ module Aws
             expect(Aws::SQS::QueuePoller).to receive(:new).and_return(queue_poller)
             expect(queue_poller).to receive(:poll) { |&block| block.call([msg, msg]) }
 
-            expect(executor).to receive(:execute).twice.with(instance_of(Aws::SQS::Message))
+            expect(executor).to receive(:execute).twice.with(instance_of(Aws::SQS::Message), queue: :default)
 
             poller.run
           end
