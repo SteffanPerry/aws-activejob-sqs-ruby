@@ -55,7 +55,7 @@ module Aws
         describe '#initialize' do
           describe 'job_data' do
             it 'prepares job_data' do
-              expect_any_instance_of(described_class).to receive(:prepare_job_data).with(msg).and_call_original
+              expect_any_instance_of(described_class).to receive(:job_data).with(msg).and_call_original
               subject
             end
 
@@ -87,20 +87,20 @@ module Aws
           end
         end
 
-        describe '#prepare_job_data' do
+        describe '#job_data' do
           before { subject } # initialize the subject
 
           context 'active job message' do
             it 'returns the job data' do
               expect(ActiveSupport::JSON).to receive(:load).with(body).and_call_original
-              expect(subject.send(:prepare_job_data, msg)).to eq job_data
+              expect(subject.send(:job_data, msg)).to eq job_data
             end
           end
 
           context 'event message' do
             it 'invokes format_event_data' do
               expect(subject).to receive(:format_event_data).with(event_msg).and_call_original
-              subject.send(:prepare_job_data, event_msg)
+              subject.send(:job_data, event_msg)
             end
           end
         end

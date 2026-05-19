@@ -9,7 +9,7 @@ module Aws
 
         def initialize(message, queue: nil)
           @queue = queue&.to_sym
-          @job_data = prepare_job_data(message)
+          @job_data = job_data(message)
           @class_name = @job_data['job_class'].constantize
           @id = @job_data['job_id']
         end
@@ -25,12 +25,16 @@ module Aws
 
         private
 
-        def prepare_job_data(message)
-          return ActiveSupport::JSON.load(message.data.body) if active_job_message?(message)
-
-          format_event_data(message)
+        def job_data(message)
+          if active_job_message?(message)
+            ActiveSupport::JSON.load(message.data.body)
+          else
+            format_event_data(message)
+          end
         end
 
+        # Builds the hash passed to ActiveJob::Base.execute for event messages.
+        # Keys match the serialized job payload shape (job_class, job_id, arguments).
         def format_event_data(message)
           {
             'job_class' => event_message_class_for(message),
@@ -44,11 +48,8 @@ module Aws
           }
         end
 
-        # Active job messages will have message_attributes key 'aws_sqs_active_job_class'
         def active_job_message?(message)
-          !message
-            .message_attributes['aws_sqs_active_job_class']
-            .nil?
+          message.message_attributes.key?('aws_sqs_active_job_class')
         end
 
         def event_message_class_for(message)
