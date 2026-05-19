@@ -190,6 +190,25 @@ module Aws
           end
         end
 
+        # Maps SQS queue URLs to event processor class names for queues that
+        # declare +event_message_class+.
+        #
+        # @return [Hash{String => String}]
+        def event_message_handlers_by_url
+          queues.each_value.with_object({}) do |queue_config, handlers|
+            next unless queue_config[:event_message_class].present?
+            next unless queue_config[:url].present?
+
+            handlers[queue_config[:url]] = queue_config[:event_message_class]
+          end
+        end
+
+        # @param [String] url SQS queue URL
+        # @return [String, nil] event processor class name when configured
+        def event_message_class_for_url(url)
+          event_message_handlers_by_url[url]
+        end
+
         # @api private
         def to_s
           to_h.to_s

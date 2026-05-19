@@ -49,48 +49,7 @@ module Aws
         end
 
         before do
-          described_class.class_variable_set(:@@queue_handlers, nil)
-          allow(Aws::ActiveJob::SQS.config).to receive(:queues).and_return(queue_config).once
-        end
-
-        describe '.queue_event_handlers' do
-          context 'has no event queues' do
-            it 'returns empty hash' do
-              allow(Aws::ActiveJob::SQS.config).to receive(:queues).and_return(queue_config.except(:event_queue))
-              expect(described_class.queue_event_handlers).to eq({})
-            end
-          end
-
-          context 'has event queues' do
-            it 'returns a hash of queue urls to job classes' do
-              expect(described_class.queue_event_handlers).to eq(
-                'http://example.sqs/event_queue' => 'EventJob'
-              )
-            end
-
-            context 'when configued with ENV' do
-              let(:cfg) do
-                queues = queue_config.dup
-                queues[:event_queue].delete(:event_message_class)
-                Configuration.new(queues: queues)
-              end
-
-              before do
-                ENV['AWS_ACTIVE_JOB_SQS_EVENT_QUEUE_EVENT_MESSAGE_CLASS'] = 'ENVEventJob'
-                allow(Aws::ActiveJob::SQS).to receive(:config).and_return(cfg)
-              end
-
-              after do
-                ENV.delete('AWS_ACTIVE_JOB_SQS_EVENT_QUEUE_EVENT_MESSAGE_CLASS')
-              end
-
-              it 'returns a hash of queue urls to job classes' do
-                expect(described_class.queue_event_handlers).to eq(
-                  'http://example.sqs/event_queue' => 'ENVEventJob'
-                )
-              end
-            end
-          end
+          allow(Aws::ActiveJob::SQS.config).to receive(:queues).and_return(queue_config)
         end
 
         describe '#initialize' do
@@ -191,11 +150,6 @@ module Aws
           end
         end
 
-        describe '#queue_event_handlers' do
-          it 'returns class.queue_event_handlers' do
-            expect(subject.send(:queue_event_handlers)).to eq(described_class.queue_event_handlers)
-          end
-        end
       end
     end
   end

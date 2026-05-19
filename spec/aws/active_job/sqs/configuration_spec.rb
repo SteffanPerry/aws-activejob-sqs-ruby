@@ -146,6 +146,61 @@ module Aws
           end
         end
 
+        describe '#event_message_handlers_by_url' do
+          let(:cfg) do
+            Configuration.new(
+              config_file: 'nonexistant',
+              queues: {
+                default: { url: 'http://example.sqs/default_queue' },
+                event_queue: {
+                  url: 'http://example.sqs/event_queue',
+                  event_message_class: 'TestEventJob'
+                }
+              }
+            )
+          end
+
+          it 'returns empty hash when no queues have event_message_class' do
+            cfg = Configuration.new(
+              config_file: 'nonexistant',
+              queues: { default: { url: 'http://example.sqs/default_queue' } }
+            )
+            expect(cfg.event_message_handlers_by_url).to eq({})
+          end
+
+          it 'maps queue urls to event_message_class values' do
+            expect(cfg.event_message_handlers_by_url).to eq(
+              'http://example.sqs/event_queue' => 'TestEventJob'
+            )
+          end
+
+          it 'resolves class name via event_message_class_for_url' do
+            expect(cfg.event_message_class_for_url('http://example.sqs/event_queue'))
+              .to eq('TestEventJob')
+            expect(cfg.event_message_class_for_url('http://example.sqs/unknown')).to be_nil
+          end
+
+          context 'when configured with ENV' do
+            let(:cfg) do
+              Configuration.new(
+                config_file: 'nonexistant',
+                queues: {
+                  event_queue: { url: 'http://example.sqs/event_queue' }
+                }
+              )
+            end
+
+            before { ENV['AWS_ACTIVE_JOB_SQS_EVENT_QUEUE_EVENT_MESSAGE_CLASS'] = 'ENVEventJob' }
+            after { ENV.delete('AWS_ACTIVE_JOB_SQS_EVENT_QUEUE_EVENT_MESSAGE_CLASS') }
+
+            it 'includes ENV-configured event_message_class' do
+              expect(cfg.event_message_handlers_by_url).to eq(
+                'http://example.sqs/event_queue' => 'ENVEventJob'
+              )
+            end
+          end
+        end
+
         describe '#poller_error_handler' do
           it 'allows configuration through a block' do
             cfg = Aws::ActiveJob::SQS::Configuration.new

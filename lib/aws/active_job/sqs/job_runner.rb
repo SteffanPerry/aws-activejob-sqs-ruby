@@ -7,16 +7,6 @@ module Aws
       class JobRunner
         attr_reader :id, :class_name
 
-        def self.queue_event_handlers
-          @@queue_handlers ||= {}.tap do |handlers|
-            Aws::ActiveJob::SQS.config.queues.values.each do |queue_config|
-              next unless queue_config[:event_message_class].present?
-
-              handlers[queue_config[:url]] = queue_config[:event_message_class]
-            end
-          end
-        end
-
         def initialize(message)
           @job_data   = prepare_job_data(message)
           @class_name = @job_data['job_class'].constantize
@@ -61,13 +51,10 @@ module Aws
         end
 
         def job_class_from_config(queue_url)
-          return queue_event_handlers[queue_url] if queue_event_handlers[queue_url]
+          handler = Aws::ActiveJob::SQS.config.event_message_class_for_url(queue_url)
+          return handler if handler
 
           raise ArgumentError, "No handler configured for queue #{queue_url}"
-        end
-
-        def queue_event_handlers
-          self.class.queue_event_handlers
         end
       end
     end
