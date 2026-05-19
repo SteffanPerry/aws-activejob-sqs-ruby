@@ -1,6 +1,7 @@
 Unreleased Changes
 ------------------
 
+* Feature - Support processing non-Active Job SQS messages.
 * Issue - Remove `aws_sqs_active_job` executable. 
 
 1.0.1 (2024-12-23)
