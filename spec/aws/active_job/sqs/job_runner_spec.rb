@@ -64,8 +64,8 @@ module Aws
             end
 
             it 'prepares event job data' do
-              instance = described_class.new(event_msg)
-              expected = described_class.new(event_msg).send(:format_event_data, event_msg)
+              instance = described_class.new(event_msg, queue: :event_queue)
+              expected = described_class.new(event_msg, queue: :event_queue).send(:format_event_data, event_msg)
 
               expect(instance.instance_variable_get(:@job_data)).to eq(expected)
             end
@@ -106,7 +106,7 @@ module Aws
         end
 
         describe '#format_event_data' do
-          let(:event_job) { described_class.new(event_msg) }
+          let(:event_job) { described_class.new(event_msg, queue: :event_queue) }
 
           it 'returns a hash with job_class, job_id, and arguments' do
             message = event_msg.data.as_json.merge(
@@ -132,20 +132,20 @@ module Aws
           end
         end
 
-        describe '#job_class_from_config' do
-          it 'returns the job class from the queue config' do
-            event_url   = queue_config.dig(:event_queue, :url)
+        describe '#event_message_class_for' do
+          it 'returns the event_message_class for the queue' do
             event_class = queue_config.dig(:event_queue, :event_message_class)
+            runner = described_class.new(event_msg, queue: :event_queue)
 
-            expect(subject.send(:job_class_from_config, event_url)).to eq(event_class)
+            expect(runner.send(:event_message_class_for, event_msg)).to eq(event_class)
           end
 
-          context 'missing job class' do
+          context 'missing event_message_class' do
             it 'raises error' do
-              queue_url = queue_config.dig(:default_queue, :url)
+              runner = described_class.new(event_msg, queue: :default_queue)
               expect {
-                subject.send(:job_class_from_config, queue_url)
-              }.to raise_error(ArgumentError, "No handler configured for queue #{queue_url}")
+                runner.send(:event_message_class_for, event_msg)
+              }.to raise_error(ArgumentError, 'No event_message_class configured for queue default_queue')
             end
           end
         end

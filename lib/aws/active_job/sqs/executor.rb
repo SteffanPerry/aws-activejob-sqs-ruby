@@ -43,9 +43,9 @@ module Aws
           @shutting_down = Concurrent::AtomicBoolean.new(false)
         end
 
-        def execute(message)
+        def execute(message, queue: nil)
           @post_mutex.synchronize do
-            _execute(message)
+            _execute(message, queue)
           end
         end
 
@@ -70,8 +70,8 @@ module Aws
 
         private
 
-        def _execute(message)
-          post_task(message)
+        def _execute(message, queue)
+          post_task(message, queue)
         rescue Concurrent::RejectedExecutionError
           # no capacity, wait for a task to complete
           @task_complete.reset
@@ -79,14 +79,14 @@ module Aws
           retry
         end
 
-        def post_task(message)
-          @executor.post(message) do |msg|
-            execute_task(msg)
+        def post_task(message, queue)
+          @executor.post([message, queue]) do |msg, job_queue|
+            execute_task(msg, job_queue)
           end
         end
 
-        def execute_task(message)
-          job = JobRunner.new(message)
+        def execute_task(message, queue)
+          job = JobRunner.new(message, queue: queue)
           @logger.info("Running job: #{job.id}[#{job.class_name}]")
           job.run
           message.delete

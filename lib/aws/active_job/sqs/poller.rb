@@ -80,7 +80,7 @@ module Aws
           poller_options = poller_options(queue)
           @logger.info "Foreground Polling on: #{queue} => #{queue_url} with options=#{poller_options}"
 
-          _poll(poller_options, queue_url)
+          _poll(poller_options, queue)
         end
 
         def poll_background(queues)
@@ -93,7 +93,7 @@ module Aws
               poller_options = poller_options(queue)
               @logger.info "Background Polling on: #{queue} => #{queue_url} with options=#{poller_options}"
 
-              _poll(poller_options, queue_url)
+              _poll(poller_options, queue)
             end
           end
           poller_threads.each(&:join)
@@ -124,28 +124,32 @@ module Aws
           poller_options
         end
 
-        def _poll(poller_options, queue_url)
+        def _poll(poller_options, queue)
+          config = Aws::ActiveJob::SQS.config
+          queue_url = config.url_for(queue)
           poller = Aws::SQS::QueuePoller.new(
             queue_url,
-            client: Aws::ActiveJob::SQS.config.client
+            client: config.client
           )
           single_message = poller_options[:max_number_of_messages] == 1
           poller.poll(poller_options) do |msgs|
             msgs = [msgs] if single_message
-            execute_messages(msgs, queue_url)
+            execute_messages(msgs, queue)
           end
         end
 
-        def execute_messages(msgs, queue_url)
+        def execute_messages(msgs, queue)
+          config = Aws::ActiveJob::SQS.config
+          queue_url = config.url_for(queue)
           @logger.info "Processing batch of #{msgs.length} messages"
           msgs.each do |msg|
             sqs_message = Aws::SQS::Message.new(
               queue_url: queue_url,
               receipt_handle: msg.receipt_handle,
               data: msg,
-              client: Aws::ActiveJob::SQS.config.client
+              client: config.client
             )
-            @executor.execute(sqs_message)
+            @executor.execute(sqs_message, queue: queue)
           end
         end
       end
