@@ -30,7 +30,7 @@ class TestJobWithDedupKeys < TestJob
   include Aws::ActiveJob::SQS::Deduplication
 end
 
-class EventJob < ActiveJob::Base
+class TestEventJob < ActiveJob::Base
   self.logger = ActiveSupport::Logger.new(IO::NULL)
   def perform(sqs_message); end
 end

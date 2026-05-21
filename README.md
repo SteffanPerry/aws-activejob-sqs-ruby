@@ -242,7 +242,7 @@ additional file that includes required Job/application definitions with
 bundle exec aws_active_job_sqs --queue default --no-rails --require my_jobs.rb
 ```
 
-### Event Processing: Processing event jobs
+### Event Processing: Processing Non-ActiveJob SQS messages
 
 This gem allows you to also process events enqueued outside of ActiveJob.
 For example processing jobs from a SQS queue subscribed to a SNS topic, IOT event, Eventbridge event, etc.
@@ -250,63 +250,62 @@ For example processing jobs from a SQS queue subscribed to a SNS topic, IOT even
 ```yaml
 # config/aws_active_job_sqs.yml
 queues:
-  default: 
+  default:
     url: 'https://my-queue-url.amazon.aws'
-  event_job: 
+  event_job:
     url: 'https://my-event-queue-url.amazon.aws'
     event_message_class: 'MyEventJob' # Job processor class
 ```
 
-If the SQS message is not an Active Job (i.e., not enqueued by ActiveJob with an 'aws_sqs_active_job_class' message attribute), it will be treated as an event, and the specified job processor class (event_message_class) will be invoked with the raw SQS message for processing.
+If the SQS message is not an Active Job (i.e., not enqueued by ActiveJob with an 'aws_sqs_active_job_class' message attribute), it will be treated as an event, and the specified job processor class (`event_message_class`) will be invoked with the raw SQS message for processing.
+
+You may also set `event_message_class` per queue via environment variable
+(`AWS_ACTIVE_JOB_SQS_<QUEUE>_EVENT_MESSAGE_CLASS`) or the CLI:
+
+```sh
+bundle exec aws_active_job_sqs --queue event_job --event_message_class MyEventJob
+```
 
 ```ruby
 class MyEventJob < ApplicationJob
   def perform(message)
-    sqs_message_id      = message['message_id']
-    receipt_handle      = message['receipt_handle']
-    attributes          = message['attributes']
-    message_attributes  = message['message_attributes']
-    queue_url           = message['queue_url']
-    message_body        = message['body']
+    sqs_message_id = message['message_id']
+    receipt_handle = message['receipt_handle']
+    attributes = message['attributes']
+    message_attributes = message['message_attributes']
+    queue_url = message['queue_url']
+    message_body = message['body']
   end
 end
 ```
 
-#### Event Processing: Manually handle sqs messages.
+#### Extending visibility
 
-In the event you need more time to process a job, you have all necessary data to change the visibility timeout.
+On successful processing, the message is deleted from the queue automatically (same as Active Job messages). If you need more time than the queue visibility timeout allows, the message hash includes `receipt_handle` and `queue_url` so you can extend visibility before finishing work:
 
 ```ruby
 class MyEventJob < ApplicationJob
-  MAX_RETRIES = 10
-
   def perform(message)
-    @receipt_handle = message['receipt_handle']
-    @queue_url      = message['queue_url']
-
+    sqs_message = Aws::SQS::Message.new(
+      queue_url: message['queue_url'],
+      receipt_handle: message['receipt_handle'],
+      client: Aws::ActiveJob::SQS.config.client
+    )
     sqs_message.change_visibility(visibility_timeout: 500)
     process_message(message['body'])
   end
 
   def process_message(message_body)
-   # Do work...
-  end
-
-  def sqs_message
-    @sqs_message ||= Aws::SQS::Message.new(
-      queue_url: @queue_url,
-      receipt_handle: @receipt_handle,
-      client: Aws::ActiveJob::SQS.config.client
-    )
+    # Do work...
   end
 end
 ```
 
-#### Event Processing: Retries
+#### Retries
 
-Message event failures are treated the same as ActiveJob failures. By default, a StandardError whill leave the message on the queue and initiate shutdown for the poller and it will attempt to finish executing any in progress jobs. 
+Message event failures are treated the same as ActiveJob failures. By default, a StandardError will leave the message on the queue and initiate shutdown for the poller and it will attempt to finish executing any in progress jobs.
 
-It is reccomended to configure [retry_on](https://api.rubyonrails.org/classes/ActiveJob/Exceptions/ClassMethods.html#method-i-retry_on) for handling failures. For more information, please read the [Retry Behavior and Handling Errors](#retry-behavior-and-handling-errors) section.
+It is recommended to configure [retry_on](https://api.rubyonrails.org/classes/ActiveJob/Exceptions/ClassMethods.html#method-i-retry_on) for handling failures. For more information, please read the [Retry Behavior and Handling Errors](#retry-behavior-and-handling-errors) section.
 
 ### Serverless workers: Processing jobs using AWS Lambda
 

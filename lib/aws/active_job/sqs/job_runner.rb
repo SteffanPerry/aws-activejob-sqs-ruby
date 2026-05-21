@@ -7,20 +7,11 @@ module Aws
       class JobRunner
         attr_reader :id, :class_name
 
-        def self.queue_event_handlers
-          @@queue_handlers ||= {}.tap do |handlers|
-            Aws::ActiveJob::SQS.config.queues.values.each do |queue_config|
-              next unless queue_config[:event_message_class].present?
-
-              handlers[queue_config[:url]] = queue_config[:event_message_class]
-            end
-          end
-        end
-
-        def initialize(message)
-          @job_data   = prepare_job_data(message)
+        def initialize(message, queue: nil)
+          @queue = queue&.to_sym
+          @job_data = job_data(message)
           @class_name = @job_data['job_class'].constantize
-          @id         = @job_data['job_id']
+          @id = @job_data['job_id']
         end
 
         def run
@@ -34,15 +25,19 @@ module Aws
 
         private
 
-        def prepare_job_data(message)
-          return ActiveSupport::JSON.load(message.data.body) if active_job_message?(message)
-
-          format_event_data(message)
+        def job_data(message)
+          if active_job_message?(message)
+            ActiveSupport::JSON.load(message.data.body)
+          else
+            format_event_data(message)
+          end
         end
 
+        # Builds the hash passed to ActiveJob::Base.execute for event messages.
+        # Keys match the serialized job payload shape (job_class, job_id, arguments).
         def format_event_data(message)
           {
-            'job_class' => job_class_from_config(message.queue_url),
+            'job_class' => event_message_class_for(message),
             'job_id' => message.message_id,
             'arguments' => [
               message.data.as_json.merge(
@@ -53,21 +48,20 @@ module Aws
           }
         end
 
-        # Active job messages will have message_attributes key 'aws_sqs_active_job_class'
         def active_job_message?(message)
-          !message
-            .message_attributes['aws_sqs_active_job_class']
-            .nil?
+          message.message_attributes.key?('aws_sqs_active_job_class')
         end
 
-        def job_class_from_config(queue_url)
-          return queue_event_handlers[queue_url] if queue_event_handlers[queue_url]
+        def event_message_class_for(message)
+          handler = if @queue
+                      Aws::ActiveJob::SQS.config.event_message_class_for(@queue)
+                    else
+                      Aws::ActiveJob::SQS.config.event_message_class_for_url(message.queue_url)
+                    end
+          return handler if handler
 
-          raise ArgumentError, "No handler configured for queue #{queue_url}"
-        end
-
-        def queue_event_handlers
-          self.class.queue_event_handlers
+          target = @queue || message.queue_url
+          raise ArgumentError, "No event_message_class configured for queue #{target}"
         end
       end
     end
